@@ -31,6 +31,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.Serializable;
 
 /**
  * <p>
@@ -81,8 +82,7 @@ public enum JacksonTranscoder implements Transcoder<Object> {
         try {
             final Class<?> valueType = Class.forName(classIn.readUTF());
             LOG.trace("Read class {}", valueType);
-            final JsonParser parser = factory.createJsonParser(in);
-            return parser.readValueAs(valueType);
+            return factory.createJsonParser(in).readValueAs(valueType);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         } catch (ClassNotFoundException e) {

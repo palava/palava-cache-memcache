@@ -23,7 +23,6 @@ import com.google.inject.name.Named;
 import de.cosmocode.jackson.JacksonRenderer;
 import de.cosmocode.palava.core.lifecycle.Initializable;
 import de.cosmocode.palava.core.lifecycle.LifecycleException;
-import de.cosmocode.palava.ipc.Current;
 import de.cosmocode.rendering.Renderer;
 import net.spy.memcached.AddrUtil;
 import net.spy.memcached.BinaryConnectionFactory;
@@ -54,42 +53,26 @@ import java.util.concurrent.TimeUnit;
  */
 final class MemcacheService implements CacheService, Initializable, Provider<MemcachedClientIF> {
 
-    private static final String MAX_AGE_NEGATIVE = "Max age must not be negative, but was %s";
-
     private static final Logger LOG = LoggerFactory.getLogger(MemcacheService.class);
 
     private final List<InetSocketAddress> addresses;
     private final Provider<MemcachedClientIF> memcachedClientProvider;
 
     private boolean binary;
-    private long defaultTimeout;
-    private TimeUnit defaultTimeoutUnit = TimeUnit.SECONDS;
     private int compressionThreshold = -1;
     private HashAlgorithm hashAlgorithm = HashAlgorithm.NATIVE_HASH;
     private ConnectionFactory cf;
 
     @Inject
-    public MemcacheService(
-            @Named(MemcacheServiceConfig.ADRESSES) String addresses,
-            @Current Provider<MemcachedClientIF> memcachedClientProvider) {
-        this.memcachedClientProvider = memcachedClientProvider;
+    public MemcacheService(@Named(MemcacheServiceConfig.ADRESSES) String addresses) {
         Preconditions.checkNotNull(addresses, "Addresses");
         this.addresses = AddrUtil.getAddresses(addresses);
+        this.memcachedClientProvider = this;
     }
 
     @Inject(optional = true)
     public void setBinary(@Named(MemcacheServiceConfig.BINARY) boolean binary) {
         this.binary = binary;
-    }
-
-    @Inject(optional = true)
-    public void setDefaultTimeout(@Named(MemcacheServiceConfig.DEFAULT_TIMEOUT) long defaultTimeout) {
-        this.defaultTimeout = defaultTimeout;
-    }
-
-    @Inject(optional = true)
-    public void setDefaultTimeoutUnit(@Named(MemcacheServiceConfig.DEFAULT_TIMEOUT_UNIT) TimeUnit defaultTimeoutUnit) {
-        this.defaultTimeoutUnit = defaultTimeoutUnit;
     }
 
     @Inject(optional = true)
@@ -148,16 +131,15 @@ final class MemcacheService implements CacheService, Initializable, Provider<Mem
 
     @Override
     public void store(Serializable key, Object value) {
-        store(key, value, defaultTimeout, defaultTimeoutUnit);
+        store(key, value, CacheExpirations.ETERNAL);
     }
 
     @Override
-    public void store(Serializable key, Object value, long maxAge, TimeUnit maxAgeUnit) {
+    public void store(Serializable key, Object value, CacheExpiration expiration) {
         Preconditions.checkNotNull(key, "Key");
-        Preconditions.checkArgument(maxAge >= 0, MAX_AGE_NEGATIVE, maxAge);
-        Preconditions.checkNotNull(maxAgeUnit, "MaxAge TimeUnit");
+        Preconditions.checkNotNull(expiration, "Expiration");
 
-        final int timeout = (int) maxAgeUnit.toSeconds(maxAge);
+        final int timeout = (int) expiration.getLifeTimeIn(TimeUnit.SECONDS);
 
         // get the memcache connection
         final MemcachedClientIF memcache = memcachedClientProvider.get();
@@ -165,14 +147,6 @@ final class MemcacheService implements CacheService, Initializable, Provider<Mem
         // store it
         LOG.trace("Storing {} => {}..", key, value);
         memcache.set(toStringKey(key), timeout, value, JacksonTranscoder.INSTANCE);
-    }
-
-    @Override
-    public void store(Serializable key, Object value, CacheExpiration expiration) {
-        Preconditions.checkNotNull(key, "Key");
-        Preconditions.checkNotNull(expiration, "Expiration");
-        // just redirect to store with max age, because memcache does not support idle time
-        store(key, value, expiration.getLifeTime(), expiration.getLifeTimeUnit());
     }
 
     @Override

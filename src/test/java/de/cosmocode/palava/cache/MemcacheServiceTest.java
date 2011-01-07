@@ -65,26 +65,10 @@ public class MemcacheServiceTest extends CacheServiceTest {
 
     @Override
     public CacheService unit() {
-        final MemcacheProviderProxy provider = new MemcacheProviderProxy();
-        final MemcacheService service = new MemcacheService("192.168.0.12:11211", provider);
-        provider.setOriginal(service);
+        // TODO set the address to something external
+        final MemcacheService service = new MemcacheService("192.168.0.12:11211");
         service.initialize();
         return service;
-    }
-
-    private static class MemcacheProviderProxy implements Provider<MemcachedClientIF> {
-
-        private Provider<MemcachedClientIF> original;
-
-        public void setOriginal(Provider<MemcachedClientIF> original) {
-            this.original = original;
-        }
-
-        @Override
-        public MemcachedClientIF get() {
-            return original.get();
-        }
-
     }
 
 }
