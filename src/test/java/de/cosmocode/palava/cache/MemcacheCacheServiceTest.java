@@ -19,7 +19,9 @@ package de.cosmocode.palava.cache;
 import java.util.concurrent.TimeUnit;
 
 /**
- * <p></p>
+ * <p>
+ * Tests the {@link MemcacheCacheService}.
+ * </p>
  * <p>
  * Created on: 07.01.11
  * </p>
@@ -55,7 +57,7 @@ public class MemcacheCacheServiceTest extends CacheServiceTest {
 
     @Override
     public CacheService unit() {
-        // TODO set the address to something external
+        // TODO set the address to something external, so that the test always succeeds
         final MemcacheCacheService service = new MemcacheCacheService("192.168.0.12:11211");
         service.initialize();
         return service;
