@@ -32,13 +32,13 @@ import net.spy.memcached.MemcachedClientIF;
  *
  * @author Oliver Lorenz
  */
-public class MemcacheServiceModule implements Module {
+public class MemcacheCacheServiceModule implements Module {
 
     @Override
     public void configure(Binder binder) {
-        binder.bind(MemcacheService.class).in(Singleton.class);
-        binder.bind(CacheService.class).to(MemcacheService.class);
-        binder.bind(MemcachedClientIF.class).annotatedWith(Current.class).toProvider(MemcacheService.class);
+        binder.bind(MemcacheCacheService.class).in(Singleton.class);
+        binder.bind(CacheService.class).to(MemcacheCacheService.class);
+        binder.bind(MemcachedClientIF.class).annotatedWith(Current.class).toProvider(MemcacheCacheService.class);
     }
 
 }

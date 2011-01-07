@@ -51,9 +51,9 @@ import java.util.concurrent.TimeUnit;
  *
  * @author Oliver Lorenz
  */
-final class MemcacheService implements CacheService, Initializable, Provider<MemcachedClientIF> {
+final class MemcacheCacheService implements CacheService, Initializable, Provider<MemcachedClientIF> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(MemcacheService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(MemcacheCacheService.class);
 
     private final List<InetSocketAddress> addresses;
     private final Provider<MemcachedClientIF> memcachedClientProvider;
@@ -64,24 +64,24 @@ final class MemcacheService implements CacheService, Initializable, Provider<Mem
     private ConnectionFactory cf;
 
     @Inject
-    public MemcacheService(@Named(MemcacheServiceConfig.ADRESSES) String addresses) {
+    public MemcacheCacheService(@Named(MemcacheCacheServiceConfig.ADRESSES) String addresses) {
         Preconditions.checkNotNull(addresses, "Addresses");
         this.addresses = AddrUtil.getAddresses(addresses);
         this.memcachedClientProvider = this;
     }
 
     @Inject(optional = true)
-    public void setBinary(@Named(MemcacheServiceConfig.BINARY) boolean binary) {
+    public void setBinary(@Named(MemcacheCacheServiceConfig.BINARY) boolean binary) {
         this.binary = binary;
     }
 
     @Inject(optional = true)
-    public void setCompressionThreshold(@Named(MemcacheServiceConfig.COMPRESSION_THRESHOLD) int compressionThreshold) {
+    public void setCompressionThreshold(@Named(MemcacheCacheServiceConfig.COMPRESSION_THRESHOLD) int compressionThreshold) {
         this.compressionThreshold = compressionThreshold;
     }
 
     @Inject(optional = true)
-    public void setHashAlgorithm(@Named(MemcacheServiceConfig.HASH_ALGORITHM) HashAlgorithm hashAlgorithm) {
+    public void setHashAlgorithm(@Named(MemcacheCacheServiceConfig.HASH_ALGORITHM) HashAlgorithm hashAlgorithm) {
         this.hashAlgorithm = hashAlgorithm;
     }
 
@@ -171,6 +171,7 @@ final class MemcacheService implements CacheService, Initializable, Provider<Mem
 
     @Override
     public void clear() {
+        // TODO is this already enough?
         memcachedClientProvider.get().flush();
     }
 }

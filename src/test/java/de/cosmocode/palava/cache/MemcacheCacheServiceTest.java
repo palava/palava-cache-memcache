@@ -16,16 +16,6 @@
 
 package de.cosmocode.palava.cache;
 
-import com.google.inject.Binder;
-import com.google.inject.Guice;
-import com.google.inject.Module;
-import com.google.inject.Provider;
-import com.google.inject.name.Names;
-import de.cosmocode.palava.core.DefaultRegistryModule;
-import de.cosmocode.palava.core.inject.TypeConverterModule;
-import net.spy.memcached.MemcachedClientIF;
-import org.junit.After;
-
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -36,7 +26,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @author Oliver Lorenz
  */
-public class MemcacheServiceTest extends CacheServiceTest {
+public class MemcacheCacheServiceTest extends CacheServiceTest {
 
     @Override
     protected long lifeTime() {
@@ -66,7 +56,7 @@ public class MemcacheServiceTest extends CacheServiceTest {
     @Override
     public CacheService unit() {
         // TODO set the address to something external
-        final MemcacheService service = new MemcacheService("192.168.0.12:11211");
+        final MemcacheCacheService service = new MemcacheCacheService("192.168.0.12:11211");
         service.initialize();
         return service;
     }

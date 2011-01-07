@@ -21,7 +21,7 @@ package de.cosmocode.palava.cache;
  * 
  * @author Tobias Sarnowski
  */
-public final class MemcacheServiceConfig {
+public final class MemcacheCacheServiceConfig {
 
     public static final String PREFIX = "memcache.";
 
@@ -36,7 +36,7 @@ public final class MemcacheServiceConfig {
 
     public static final String HASH_ALGORITHM = PREFIX + "hashAlgorithm";
     
-    private MemcacheServiceConfig() {
+    private MemcacheCacheServiceConfig() {
         
     }
     
