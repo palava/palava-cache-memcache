@@ -18,18 +18,26 @@ package de.cosmocode.palava.cache;
 
 import java.util.concurrent.TimeUnit;
 
+import org.aspectj.lang.Aspects;
+
+import com.google.inject.AbstractModule;
+import com.google.inject.Guice;
+import com.google.inject.name.Names;
+
+import de.cosmocode.palava.core.DefaultRegistryModule;
+import de.cosmocode.palava.core.lifecycle.LifecycleModule;
+import de.cosmocode.palava.ipc.ConnectionAwareUnitOfWorkScopeModule;
+import de.cosmocode.palava.ipc.IpcScopeModule;
+import de.cosmocode.palava.memcache.MemcacheClientModule;
+import de.cosmocode.palava.scope.UnitOfWorkScopeAspect;
+
 /**
- * <p>
  * Tests the {@link MemcacheCacheService}.
- * </p>
- * <p>
- * Created on: 07.01.11
- * </p>
  *
  * @author Oliver Lorenz
  */
-public class MemcacheCacheServiceTest extends CacheServiceTest {
-
+public final class MemcacheCacheServiceTest extends CacheServiceTest {
+    
     @Override
     protected long lifeTime() {
         return 2;
@@ -57,10 +65,23 @@ public class MemcacheCacheServiceTest extends CacheServiceTest {
 
     @Override
     public CacheService unit() {
-        // TODO set the address to something external, so that the test always succeeds
-        final MemcacheCacheService service = new MemcacheCacheService("192.168.0.12:11211");
-        service.initialize();
-        return service;
+        final CacheService unit = Guice.createInjector(
+                new LifecycleModule(),
+                new DefaultRegistryModule(),
+                new IpcScopeModule(),
+                new ConnectionAwareUnitOfWorkScopeModule(),
+                new AbstractModule() {
+                    
+                    @Override
+                    protected void configure() {
+                        bindConstant().annotatedWith(Names.named("memcache.addresses")).to("192.168.0.12:11211");
+                    }
+                    
+                },
+                new MemcacheClientModule(),
+                new MemcacheCacheServiceModule()).
+            getInstance(CacheService.class);
+        return unit;
     }
 
 }

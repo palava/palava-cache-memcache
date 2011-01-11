@@ -16,8 +16,15 @@
 
 package de.cosmocode.palava.cache;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+
 import net.spy.memcached.CachedData;
 import net.spy.memcached.transcoders.Transcoder;
+
 import org.codehaus.jackson.JsonEncoding;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonGenerator;
@@ -26,67 +33,84 @@ import org.codehaus.jackson.map.MappingJsonFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.Serializable;
+import com.google.common.base.Charsets;
+import com.google.common.io.Closeables;
+
+import de.cosmocode.commons.reflect.Reflection;
 
 /**
- * <p>
  * Jackson based transcoder that uses the {@link MappingJsonFactory} to transcode
  * any POJO.
- * </p>
- * <p>
- * Created on: 07.01.11
- * </p>
  *
  * @author Oliver Lorenz
  */
-public enum JacksonTranscoder implements Transcoder<Object> {
+enum JacksonTranscoder implements Transcoder<Object> {
 
     INSTANCE;
-
+    
     private static final Logger LOG = LoggerFactory.getLogger(JacksonTranscoder.class);
 
     private final JsonFactory factory = new MappingJsonFactory();
 
     @Override
-    public boolean asyncDecode(CachedData d) {
+    public boolean asyncDecode(CachedData data) {
         return false;
     }
 
     @Override
-    public CachedData encode(Object o) {
-        final ByteArrayOutputStream out = new ByteArrayOutputStream();
-        final DataOutputStream classOut = new DataOutputStream(out);
+    public CachedData encode(Object value) {
+        final ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+        final DataOutputStream dataStream = new DataOutputStream(byteStream);
+        
+        final JsonGenerator generator;
+        
         try {
-            classOut.writeUTF(o.getClass().getName());
-            final JsonGenerator generator = factory.createJsonGenerator(out, JsonEncoding.UTF8);
-            generator.writeObject(o);
-            generator.close();
-            out.close();
+            generator = factory.createJsonGenerator(byteStream, JsonEncoding.UTF8);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
-        final byte[] bytes = out.toByteArray();
-        LOG.trace("Writing {}", new String(bytes));
+        
+        try {
+            dataStream.writeUTF(value.getClass().getName());
+            generator.writeObject(value);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        } finally {
+            Closeables.closeQuietly(generator);
+            Closeables.closeQuietly(dataStream);
+        }
+        
+        final byte[] bytes = byteStream.toByteArray();
+        
+        if (LOG.isTraceEnabled()) {
+            LOG.trace("Writing {}", new String(bytes, Charsets.UTF_8));
+        }
+        
         return new CachedData(0, bytes, getMaxSize());
     }
 
     @Override
-    public Object decode(CachedData d) {
-        final ByteArrayInputStream in = new ByteArrayInputStream(d.getData());
-        final DataInputStream classIn = new DataInputStream(in);
+    public Object decode(CachedData data) {
+        final DataInputStream stream = new DataInputStream(new ByteArrayInputStream(data.getData()));
+        final JsonParser parser;
+        
         try {
-            final Class<?> valueType = Class.forName(classIn.readUTF());
+            parser = factory.createJsonParser(stream);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+        
+        try {
+            final Class<?> valueType = Reflection.forName(stream.readUTF());
             LOG.trace("Read class {}", valueType);
-            return factory.createJsonParser(in).readValueAs(valueType);
+            return parser.readValueAs(valueType);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException(e);
+        } finally {
+            Closeables.closeQuietly(parser);
+            Closeables.closeQuietly(stream);
         }
     }
 

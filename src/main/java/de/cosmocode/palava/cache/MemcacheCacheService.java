@@ -16,162 +16,82 @@
 
 package de.cosmocode.palava.cache;
 
-import com.google.common.base.Preconditions;
-import com.google.inject.Inject;
-import com.google.inject.Provider;
-import com.google.inject.name.Named;
-import de.cosmocode.jackson.JacksonRenderer;
-import de.cosmocode.palava.core.lifecycle.Initializable;
-import de.cosmocode.palava.core.lifecycle.LifecycleException;
-import de.cosmocode.rendering.Renderer;
-import net.spy.memcached.AddrUtil;
-import net.spy.memcached.BinaryConnectionFactory;
-import net.spy.memcached.ConnectionFactory;
-import net.spy.memcached.DefaultConnectionFactory;
-import net.spy.memcached.HashAlgorithm;
-import net.spy.memcached.MemcachedClient;
+import java.io.Serializable;
+import java.util.concurrent.TimeUnit;
+
 import net.spy.memcached.MemcachedClientIF;
-import net.spy.memcached.transcoders.BaseSerializingTranscoder;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.Serializable;
-import java.net.InetSocketAddress;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
+import com.google.common.base.Preconditions;
+import com.google.inject.Inject;
+import com.google.inject.Provider;
+
+import de.cosmocode.jackson.JacksonRenderer;
+import de.cosmocode.palava.ipc.Current;
+import de.cosmocode.palava.scope.UnitOfWork;
+import de.cosmocode.rendering.Renderer;
 
 /**
- * <p>
  * Memcache based implementation of {@link CacheService}.
- * </p>
- * <p>
- * Created on: 07.01.11
- * </p>
  *
  * @author Oliver Lorenz
  */
-final class MemcacheCacheService implements CacheService, Initializable, Provider<MemcachedClientIF> {
+final class MemcacheCacheService extends AbstractCacheService {
 
     private static final Logger LOG = LoggerFactory.getLogger(MemcacheCacheService.class);
 
-    private final List<InetSocketAddress> addresses;
-    private final Provider<MemcachedClientIF> memcachedClientProvider;
-
-    private boolean binary;
-    private int compressionThreshold = -1;
-    private HashAlgorithm hashAlgorithm = HashAlgorithm.NATIVE_HASH;
-    private ConnectionFactory cf;
+    private final Provider<MemcachedClientIF> currentClient;
 
     @Inject
-    public MemcacheCacheService(@Named(MemcacheCacheServiceConfig.ADRESSES) String addresses) {
-        Preconditions.checkNotNull(addresses, "Addresses");
-        this.addresses = AddrUtil.getAddresses(addresses);
-        this.memcachedClientProvider = this;
+    public MemcacheCacheService(@Current Provider<MemcachedClientIF> currentClient) {
+        this.currentClient = Preconditions.checkNotNull(currentClient, "CurrentClient");
     }
 
-    @Inject(optional = true)
-    public void setBinary(@Named(MemcacheCacheServiceConfig.BINARY) boolean binary) {
-        this.binary = binary;
+    private String encode(Serializable key) {
+        final Renderer r = new JacksonRenderer();
+        return r.value(key).build().toString();
     }
 
-    @Inject(optional = true)
-    public void setCompressionThreshold(@Named(MemcacheCacheServiceConfig.COMPRESSION_THRESHOLD) int compressionThreshold) {
-        this.compressionThreshold = compressionThreshold;
-    }
-
-    @Inject(optional = true)
-    public void setHashAlgorithm(@Named(MemcacheCacheServiceConfig.HASH_ALGORITHM) HashAlgorithm hashAlgorithm) {
-        this.hashAlgorithm = hashAlgorithm;
-    }
-
-    @Override
-    public void initialize() throws LifecycleException {
-        if (binary) {
-            cf = new BinaryConnectionFactory(
-                BinaryConnectionFactory.DEFAULT_OP_QUEUE_LEN,
-                BinaryConnectionFactory.DEFAULT_READ_BUFFER_SIZE,
-                hashAlgorithm
-            );
-        } else {
-            cf = new DefaultConnectionFactory(
-                DefaultConnectionFactory.DEFAULT_OP_QUEUE_LEN,
-                DefaultConnectionFactory.DEFAULT_READ_BUFFER_SIZE,
-                hashAlgorithm
-            );
-        }
-    }
-
-    @Override
-    public MemcachedClientIF get() {
-        try {
-            final MemcachedClient client = new MemcachedClient(cf, addresses);
-
-            if (compressionThreshold >= 0) {
-                if (client.getTranscoder() instanceof BaseSerializingTranscoder) {
-                    final BaseSerializingTranscoder bst = (BaseSerializingTranscoder) client.getTranscoder();
-                    bst.setCompressionThreshold(compressionThreshold);
-                } else {
-                    throw new UnsupportedOperationException(
-                        "cannot set compression threshold; transcoder does not extend BaseSerializingTranscoder");
-                }
-            }
-
-            return client;
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private String toStringKey(Serializable key) {
-        // render key as json
-        final Renderer rKey = new JacksonRenderer();
-        return rKey.value(key).build().toString();
-    }
-
-    @Override
-    public void store(Serializable key, Object value) {
-        store(key, value, CacheExpirations.ETERNAL);
-    }
-
+    @UnitOfWork
     @Override
     public void store(Serializable key, Object value, CacheExpiration expiration) {
         Preconditions.checkNotNull(key, "Key");
         Preconditions.checkNotNull(expiration, "Expiration");
-
+        
         final int timeout = (int) expiration.getLifeTimeIn(TimeUnit.SECONDS);
-
-        // get the memcache connection
-        final MemcachedClientIF memcache = memcachedClientProvider.get();
-
-        // store it
+        final MemcachedClientIF client = currentClient.get();
         LOG.trace("Storing {} => {}..", key, value);
-        memcache.set(toStringKey(key), timeout, value, JacksonTranscoder.INSTANCE);
+        client.set(encode(key), timeout, value, JacksonTranscoder.INSTANCE);
     }
 
+    @UnitOfWork
     @Override
     public <V> V read(Serializable key) {
         Preconditions.checkNotNull(key, "Key");
-        final MemcachedClientIF memcache = memcachedClientProvider.get();
+        final MemcachedClientIF client = currentClient.get();
         @SuppressWarnings("unchecked")
-        final V value = (V) memcache.get(toStringKey(key), JacksonTranscoder.INSTANCE);
-        LOG.trace("Read value {} for key {}", value, key);
+        final V value = (V) client.get(encode(key), JacksonTranscoder.INSTANCE);
+        LOG.trace("Read value {} for key '{}'", value, key);
         return value;
     }
 
+    @UnitOfWork
     @Override
     public <V> V remove(Serializable key) {
         Preconditions.checkNotNull(key, "Key");
-        final MemcachedClientIF memcache = memcachedClientProvider.get();
+        final MemcachedClientIF client = currentClient.get();
+        final String encodedKey = encode(key);
         @SuppressWarnings("unchecked")
-        final V item = (V) memcache.get(toStringKey(key), JacksonTranscoder.INSTANCE);
-        memcache.delete(toStringKey(key));
+        final V item = (V) client.get(encodedKey, JacksonTranscoder.INSTANCE);
+        client.delete(encodedKey);
         return item;
     }
 
+    @UnitOfWork
     @Override
     public void clear() {
-        // TODO is this already enough?
-        memcachedClientProvider.get().flush();
+        currentClient.get().flush();
     }
 }

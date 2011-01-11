@@ -19,16 +19,9 @@ package de.cosmocode.palava.cache;
 import com.google.inject.Binder;
 import com.google.inject.Module;
 import com.google.inject.Singleton;
-import de.cosmocode.palava.ipc.Current;
-import net.spy.memcached.MemcachedClientIF;
 
 /**
- * <p>
  * Binds the memcached based {@link CacheService} implementation to CacheService.
- * </p>
- * <p>
- * Created on: 07.01.11
- * </p>
  *
  * @author Oliver Lorenz
  */
@@ -36,9 +29,7 @@ public class MemcacheCacheServiceModule implements Module {
 
     @Override
     public void configure(Binder binder) {
-        binder.bind(MemcacheCacheService.class).in(Singleton.class);
-        binder.bind(CacheService.class).to(MemcacheCacheService.class);
-        binder.bind(MemcachedClientIF.class).annotatedWith(Current.class).toProvider(MemcacheCacheService.class);
+        binder.bind(CacheService.class).to(MemcacheCacheService.class).in(Singleton.class);
     }
 
 }
