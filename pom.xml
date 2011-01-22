@@ -12,7 +12,6 @@
     <artifactId>palava-cache-memcache</artifactId>
     <name>Palava Cache Memcache</name>
     <description>Palava CacheService implementation for memcache</description>
-
     <scm>
         <developerConnection>scm:git:git@github.com:palava/${project.artifactId}.git</developerConnection>
     </scm>
@@ -32,7 +31,6 @@
             </snapshots>
         </repository>
     </repositories>
-
     <build>
         <plugins>
             <plugin>
@@ -57,8 +55,11 @@
             </plugin>
         </plugins>
     </build>
-
     <dependencies>
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjrt</artifactId>
+        </dependency>
         <dependency>
             <groupId>spy</groupId>
             <artifactId>memcached</artifactId>
@@ -117,10 +118,5 @@
             <scope>test</scope>
             <version>[1.2,2)</version>
         </dependency>
-        <dependency>
-            <groupId>org.aspectj</groupId>
-            <artifactId>aspectjrt</artifactId>
-        </dependency>
     </dependencies>
-
 </project>
