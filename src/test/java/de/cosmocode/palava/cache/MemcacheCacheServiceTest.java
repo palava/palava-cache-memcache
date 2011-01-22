@@ -18,8 +18,6 @@ package de.cosmocode.palava.cache;
 
 import java.util.concurrent.TimeUnit;
 
-import org.aspectj.lang.Aspects;
-
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.name.Names;
@@ -29,7 +27,6 @@ import de.cosmocode.palava.core.lifecycle.LifecycleModule;
 import de.cosmocode.palava.ipc.ConnectionAwareUnitOfWorkScopeModule;
 import de.cosmocode.palava.ipc.IpcScopeModule;
 import de.cosmocode.palava.memcache.MemcacheClientModule;
-import de.cosmocode.palava.scope.UnitOfWorkScopeAspect;
 
 /**
  * Tests the {@link MemcacheCacheService}.

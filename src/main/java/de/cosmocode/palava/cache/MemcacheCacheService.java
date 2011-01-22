@@ -30,7 +30,6 @@ import com.google.inject.Provider;
 
 import de.cosmocode.jackson.JacksonRenderer;
 import de.cosmocode.palava.ipc.Current;
-import de.cosmocode.palava.scope.UnitOfWork;
 import de.cosmocode.rendering.Renderer;
 
 /**
@@ -54,7 +53,6 @@ final class MemcacheCacheService extends AbstractCacheService {
         return r.value(key).build().toString();
     }
 
-    @UnitOfWork
     @Override
     public void store(Serializable key, Object value, CacheExpiration expiration) {
         Preconditions.checkNotNull(key, "Key");
@@ -66,7 +64,6 @@ final class MemcacheCacheService extends AbstractCacheService {
         client.set(encode(key), timeout, value, JacksonTranscoder.INSTANCE);
     }
 
-    @UnitOfWork
     @Override
     public <V> V read(Serializable key) {
         Preconditions.checkNotNull(key, "Key");
@@ -77,7 +74,6 @@ final class MemcacheCacheService extends AbstractCacheService {
         return value;
     }
 
-    @UnitOfWork
     @Override
     public <V> V remove(Serializable key) {
         Preconditions.checkNotNull(key, "Key");
@@ -89,7 +85,6 @@ final class MemcacheCacheService extends AbstractCacheService {
         return item;
     }
 
-    @UnitOfWork
     @Override
     public void clear() {
         currentClient.get().flush();
