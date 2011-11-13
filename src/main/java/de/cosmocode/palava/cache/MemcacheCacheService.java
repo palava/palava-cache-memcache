@@ -17,20 +17,19 @@
 package de.cosmocode.palava.cache;
 
 import java.io.Serializable;
+import java.util.Date;
 import java.util.concurrent.TimeUnit;
-
-import net.spy.memcached.MemcachedClientIF;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 import com.google.inject.Inject;
 import com.google.inject.Provider;
-
 import de.cosmocode.jackson.JacksonRenderer;
 import de.cosmocode.palava.ipc.Current;
 import de.cosmocode.rendering.Renderer;
+import net.spy.memcached.MemcachedClientIF;
+import org.apache.commons.codec.digest.DigestUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Memcache based implementation of {@link CacheService}.
@@ -50,28 +49,56 @@ final class MemcacheCacheService extends AbstractCacheService {
 
     private String encode(Serializable key) {
         final Renderer r = new JacksonRenderer();
-        return r.value(key).build().toString();
+        final String renderedKey = r.value(key).build().toString();
+        // hash the key, so that it doesn't exceed the 250 character limit
+        return DigestUtils.shaHex(renderedKey);
     }
 
     @Override
     public void store(Serializable key, Object value, CacheExpiration expiration) {
         Preconditions.checkNotNull(key, "Key");
         Preconditions.checkNotNull(expiration, "Expiration");
-        
+
         final int timeout = (int) expiration.getLifeTimeIn(TimeUnit.SECONDS);
         final MemcachedClientIF client = currentClient.get();
         LOG.trace("Storing {} => {}..", key, value);
-        client.set(encode(key), timeout, value, JacksonTranscoder.INSTANCE);
+
+        final IdleTimeAwareValue idleTimeAwareValue = new IdleTimeAwareValue();
+        idleTimeAwareValue.setValue(value);
+        idleTimeAwareValue.setIdleTimeInSeconds(expiration.getIdleTimeIn(TimeUnit.SECONDS));
+        idleTimeAwareValue.setLifeTimeInSeconds(expiration.getLifeTimeIn(TimeUnit.SECONDS));
+        if (idleTimeAwareValue.getIdleTimeInSeconds() > 0) {
+            idleTimeAwareValue.setStoredAt(new Date());
+            idleTimeAwareValue.setLastAccessedAt(new Date());
+        }
+        client.set(encode(key), timeout, idleTimeAwareValue, JacksonTranscoder.INSTANCE);
     }
 
     @Override
     public <V> V read(Serializable key) {
         Preconditions.checkNotNull(key, "Key");
         final MemcachedClientIF client = currentClient.get();
-        @SuppressWarnings("unchecked")
-        final V value = (V) client.get(encode(key), JacksonTranscoder.INSTANCE);
-        LOG.trace("Read value {} for key '{}'", value, key);
-        return value;
+
+        final Object rawValue = client.get(encode(key), JacksonTranscoder.INSTANCE);
+        final IdleTimeAwareValue idleTimeAwareValue = (IdleTimeAwareValue) rawValue;
+        if (idleTimeAwareValue == null) {
+            return null;
+        } else if (idleTimeAwareValue.isExpired()) {
+            client.delete(encode(key));
+            return null;
+        } else {
+            if (idleTimeAwareValue.getIdleTimeInSeconds() > 0) {
+                // update the value in the cache with last accessed: now; deliberately unsafe use of set
+                idleTimeAwareValue.setLastAccessedAt(new Date());
+                final int timeout = idleTimeAwareValue.calculateNewTimeout();
+                client.set(encode(key), timeout, idleTimeAwareValue, JacksonTranscoder.INSTANCE);
+            }
+
+            @SuppressWarnings("unchecked")
+            final V value = (V) idleTimeAwareValue.getValue();
+            LOG.trace("Read value {} for key '{}'", value, key);
+            return value;
+        }
     }
 
     @Override
@@ -79,8 +106,8 @@ final class MemcacheCacheService extends AbstractCacheService {
         Preconditions.checkNotNull(key, "Key");
         final MemcachedClientIF client = currentClient.get();
         final String encodedKey = encode(key);
-        @SuppressWarnings("unchecked")
-        final V item = (V) client.get(encodedKey, JacksonTranscoder.INSTANCE);
+
+        final V item = read(key);
         client.delete(encodedKey);
         return item;
     }
