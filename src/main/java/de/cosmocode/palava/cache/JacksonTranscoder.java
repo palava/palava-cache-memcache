@@ -16,27 +16,23 @@
 
 package de.cosmocode.palava.cache;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
+import com.google.common.base.Charsets;
+import com.google.common.io.Closeables;
+import de.cosmocode.commons.reflect.Reflection;
 import net.spy.memcached.CachedData;
 import net.spy.memcached.transcoders.Transcoder;
-
 import org.codehaus.jackson.JsonEncoding;
 import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.map.MappingJsonFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.base.Charsets;
-import com.google.common.io.Closeables;
-
-import de.cosmocode.commons.reflect.Reflection;
 
 /**
  * Jackson based transcoder that uses the {@link MappingJsonFactory} to transcode
@@ -62,24 +58,15 @@ enum JacksonTranscoder implements Transcoder<Object> {
         final ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
         final DataOutputStream dataStream = new DataOutputStream(byteStream);
         
-        final JsonGenerator generator;
-        
-        try {
-            generator = factory.createJsonGenerator(byteStream, JsonEncoding.UTF8);
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
-        
         try {
             dataStream.writeUTF(value.getClass().getName());
-            generator.writeObject(value);
+            factory.createJsonGenerator(dataStream, JsonEncoding.UTF8).writeObject(value);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         } finally {
-            Closeables.closeQuietly(generator);
             Closeables.closeQuietly(dataStream);
         }
-        
+
         final byte[] bytes = byteStream.toByteArray();
         
         if (LOG.isTraceEnabled()) {
@@ -91,26 +78,20 @@ enum JacksonTranscoder implements Transcoder<Object> {
 
     @Override
     public Object decode(CachedData data) {
-        final DataInputStream stream = new DataInputStream(new ByteArrayInputStream(data.getData()));
-        final JsonParser parser;
+        final DataInputStream dataInputStream = new DataInputStream(
+            new BufferedInputStream(new ByteArrayInputStream(data.getData())));
         
         try {
-            parser = factory.createJsonParser(stream);
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
-        
-        try {
-            final Class<?> valueType = Reflection.forName(stream.readUTF());
+            final String className = dataInputStream.readUTF();
+            final Class<?> valueType = Reflection.forName(className);
             LOG.trace("Read class {}", valueType);
-            return parser.readValueAs(valueType);
+            return factory.createJsonParser(dataInputStream).readValueAs(valueType);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException(e);
         } finally {
-            Closeables.closeQuietly(parser);
-            Closeables.closeQuietly(stream);
+            Closeables.closeQuietly(dataInputStream);
         }
     }
 
