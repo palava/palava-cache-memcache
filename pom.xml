@@ -78,7 +78,7 @@
         <dependency>
             <groupId>de.cosmocode.palava</groupId>
             <artifactId>palava-cache</artifactId>
-            <version>[3.0,4)</version>
+            <version>[3.0,3.1)</version>
         </dependency>
         <dependency>
             <groupId>de.cosmocode.palava</groupId>
@@ -103,7 +103,7 @@
         <dependency>
             <groupId>de.cosmocode.palava</groupId>
             <artifactId>palava-cache</artifactId>
-            <version>[3.0,4)</version>
+            <version>[3.0,3.1)</version>
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>
@@ -115,8 +115,8 @@
         <dependency>
             <groupId>de.cosmocode</groupId>
             <artifactId>cosmocode-junit</artifactId>
-            <scope>test</scope>
             <version>[1.2,2)</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>
