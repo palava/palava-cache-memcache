@@ -48,7 +48,7 @@ public final class MemcacheCacheServiceTest extends CacheServiceTest {
             install(new SingletonUnitOfWorkScopeModule());
 
             final String address = "127.0.0.1";
-            final int port = 11211;
+            final int port = 11213;
 
             // configure local JVM memcache server
             bindConstant().annotatedWith(Names.named("local.memcache.server.verbose")).to(true);
