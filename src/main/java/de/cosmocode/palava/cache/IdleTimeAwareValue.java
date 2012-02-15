@@ -33,6 +33,7 @@ final class IdleTimeAwareValue implements Serializable {
     private long lifeTimeInSeconds;
     private Date storedAt;
     private Date lastAccessedAt;
+    private Serializable key;
     private Object value;
 
     public long getIdleTimeInSeconds() {
@@ -67,12 +68,24 @@ final class IdleTimeAwareValue implements Serializable {
         this.lastAccessedAt = lastAccessedAt;
     }
 
+    public Serializable getKey() {
+        return key;
+    }
+
+    public void setKey(Serializable key) {
+        this.key = key;
+    }
+
     public Object getValue() {
         return value;
     }
 
     public void setValue(Object value) {
         this.value = value;
+    }
+
+    public String getValueClassName() {
+        return value.getClass().getName();
     }
 
     /**

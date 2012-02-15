@@ -14,23 +14,27 @@
  * limitations under the License.
  */
 
-package de.cosmocode.palava.cache;
+package de.cosmocode.palava.cache.keysets;
 
 import com.google.inject.Binder;
 import com.google.inject.Module;
-import com.google.inject.Singleton;
+import com.google.inject.assistedinject.FactoryProvider;
 
 /**
- * Binds the memcached based {@link CacheService} implementation to CacheService.
+ * Binds the memory key set implementation to be constructed by the KeySetFactory.
+ * This implementation saves the keys in a set in the memory of the jvm.
+ * When the palava environment shuts down normally then it persists the keys to the disk.
+ * Once the environment starts again the keys are read again from the disk.
  *
  * @author Oliver Lorenz
+ * @since 1.0
  */
-@Deprecated
-public class MemcacheCacheServiceModule implements Module {
+public class MemoryKeySetModule implements Module {
 
     @Override
     public void configure(Binder binder) {
-        binder.bind(CacheService.class).to(MemcacheCacheService.class).in(Singleton.class);
+        binder.bind(KeySetFactory.class).toProvider(
+                FactoryProvider.newFactory(KeySetFactory.class, MemoryKeySet.class));
     }
 
 }

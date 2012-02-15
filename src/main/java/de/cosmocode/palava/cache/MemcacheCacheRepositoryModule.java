@@ -18,19 +18,19 @@ package de.cosmocode.palava.cache;
 
 import com.google.inject.Binder;
 import com.google.inject.Module;
-import com.google.inject.Singleton;
+import com.google.inject.assistedinject.FactoryProvider;
 
 /**
- * Binds the memcached based {@link CacheService} implementation to CacheService.
+ * Installs the Memcache cache repository.
  *
  * @author Oliver Lorenz
+ * @since 1.0
  */
-@Deprecated
-public class MemcacheCacheServiceModule implements Module {
+public class MemcacheCacheRepositoryModule implements Module {
 
     @Override
     public void configure(Binder binder) {
-        binder.bind(CacheService.class).to(MemcacheCacheService.class).in(Singleton.class);
+        binder.bind(CacheRepository.class).to(MemcacheCacheRepository.class);
     }
 
 }

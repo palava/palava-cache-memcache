@@ -14,23 +14,25 @@
  * limitations under the License.
  */
 
-package de.cosmocode.palava.cache;
+package de.cosmocode.palava.cache.keysets;
 
-import com.google.inject.Binder;
-import com.google.inject.Module;
-import com.google.inject.Singleton;
+import java.util.Set;
 
 /**
- * Binds the memcached based {@link CacheService} implementation to CacheService.
+ * A factory that produces Sets that hold the keys as they appear in memcache for a cache region.
+ * The implementations are free to store them whereever and in whichever way they choose.
  *
  * @author Oliver Lorenz
+ * @since 1.0
  */
-@Deprecated
-public class MemcacheCacheServiceModule implements Module {
+public interface KeySetFactory {
 
-    @Override
-    public void configure(Binder binder) {
-        binder.bind(CacheService.class).to(MemcacheCacheService.class).in(Singleton.class);
-    }
+    /**
+     * Constructs the new key set with the given unqiue name.
+     *
+     * @param name the name of the key set, the same as the cache region; can be used for persistence
+     * @return a new Set of Strings that usually handles persistence over application restart
+     */
+    Set<String> create(final String name);
 
 }

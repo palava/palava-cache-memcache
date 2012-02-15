@@ -56,6 +56,13 @@
         </plugins>
     </build>
     <dependencies>
+        <!-- guice assisted inject -->
+        <dependency>
+            <groupId>com.google.inject.extensions</groupId>
+            <artifactId>guice-assisted-inject</artifactId>
+            <version>2.0</version>
+        </dependency>
+
         <dependency>
             <groupId>org.aspectj</groupId>
             <artifactId>aspectjrt</artifactId>
@@ -78,7 +85,7 @@
         <dependency>
             <groupId>de.cosmocode.palava</groupId>
             <artifactId>palava-cache</artifactId>
-            <version>[3.0,3.1)</version>
+            <version>3.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>de.cosmocode.palava</groupId>

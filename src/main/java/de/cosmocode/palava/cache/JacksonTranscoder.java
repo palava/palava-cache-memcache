@@ -16,13 +16,6 @@
 
 package de.cosmocode.palava.cache;
 
-import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-
 import com.google.common.base.Charsets;
 import com.google.common.io.Closeables;
 import de.cosmocode.commons.reflect.Reflection;
@@ -30,17 +23,26 @@ import net.spy.memcached.CachedData;
 import net.spy.memcached.transcoders.Transcoder;
 import org.codehaus.jackson.JsonEncoding;
 import org.codehaus.jackson.JsonFactory;
+import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.map.MappingJsonFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
+import java.util.Date;
+
 /**
- * Jackson based transcoder that uses the {@link MappingJsonFactory} to transcode
- * any POJO.
+ * Jackson based transcoder that uses the {@link MappingJsonFactory} to transcode any POJO.
  *
  * @author Oliver Lorenz
  */
-enum JacksonTranscoder implements Transcoder<Object> {
+enum JacksonTranscoder implements Transcoder<IdleTimeAwareValue> {
 
     INSTANCE;
     
@@ -54,17 +56,28 @@ enum JacksonTranscoder implements Transcoder<Object> {
     }
 
     @Override
-    public CachedData encode(Object value) {
+    public CachedData encode(IdleTimeAwareValue metaValue) {
         final ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
-        final DataOutputStream dataStream = new DataOutputStream(byteStream);
-        
+        ObjectOutputStream objectOutputStream = null;
+
         try {
-            dataStream.writeUTF(value.getClass().getName());
-            factory.createJsonGenerator(dataStream, JsonEncoding.UTF8).writeObject(value);
+            objectOutputStream = new ObjectOutputStream(byteStream);
+
+            // write metadata
+            objectOutputStream.writeUTF(metaValue.getValueClassName());
+            objectOutputStream.writeObject(metaValue.getKey());
+            objectOutputStream.writeLong(metaValue.getIdleTimeInSeconds());
+            objectOutputStream.writeLong(metaValue.getLifeTimeInSeconds());
+            if (metaValue.getIdleTimeInSeconds() > 0) {
+                objectOutputStream.writeLong(metaValue.getStoredAt().getTime());
+                objectOutputStream.writeLong(metaValue.getLastAccessedAt().getTime());
+            }
+
+            factory.createJsonGenerator(objectOutputStream, JsonEncoding.UTF8).writeObject(metaValue.getValue());
         } catch (IOException e) {
             throw new IllegalStateException(e);
         } finally {
-            Closeables.closeQuietly(dataStream);
+            Closeables.closeQuietly(objectOutputStream);
         }
 
         final byte[] bytes = byteStream.toByteArray();
@@ -77,21 +90,39 @@ enum JacksonTranscoder implements Transcoder<Object> {
     }
 
     @Override
-    public Object decode(CachedData data) {
-        final DataInputStream dataInputStream = new DataInputStream(
-            new BufferedInputStream(new ByteArrayInputStream(data.getData())));
-        
+    public IdleTimeAwareValue decode(CachedData data) {
+        final ByteArrayInputStream byteStream = new ByteArrayInputStream(data.getData());
+        ObjectInputStream inputStream = null;
+
         try {
-            final String className = dataInputStream.readUTF();
+            inputStream = new ObjectInputStream(new BufferedInputStream(byteStream));
+            final IdleTimeAwareValue metaValue = new IdleTimeAwareValue();
+
+            // read metadata
+            final String className = inputStream.readUTF();
+            metaValue.setKey(Serializable.class.cast(inputStream.readObject()));
+            metaValue.setIdleTimeInSeconds(inputStream.readLong());
+            metaValue.setLifeTimeInSeconds(inputStream.readLong());
+            if (metaValue.getIdleTimeInSeconds() > 0) {
+                metaValue.setStoredAt(new Date(inputStream.readLong()));
+                metaValue.setLastAccessedAt(new Date(inputStream.readLong()));
+            }
+
+            // read real value
             final Class<?> valueType = Reflection.forName(className);
             LOG.trace("Read class {}", valueType);
-            return factory.createJsonParser(dataInputStream).readValueAs(valueType);
+            final JsonParser jsonInputStreamParser = factory.createJsonParser(inputStream);
+            final Object value = jsonInputStreamParser.readValueAs(valueType);
+            LOG.trace("Read value: {} of type {}", value, valueType);
+            metaValue.setValue(value);
+
+            return metaValue;
         } catch (IOException e) {
             throw new IllegalStateException(e);
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException(e);
         } finally {
-            Closeables.closeQuietly(dataInputStream);
+            Closeables.closeQuietly(inputStream);
         }
     }
 
