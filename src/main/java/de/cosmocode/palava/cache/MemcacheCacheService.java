@@ -27,6 +27,7 @@ import java.io.Serializable;
  *
  * @author Oliver Lorenz
  * @since 1.0
+ * @deprecated replaced with {@link MemcacheCacheRegion}
  */
 @Deprecated
 final class MemcacheCacheService extends AbstractCacheService {

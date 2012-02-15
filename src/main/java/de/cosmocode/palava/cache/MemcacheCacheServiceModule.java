@@ -19,17 +19,21 @@ package de.cosmocode.palava.cache;
 import com.google.inject.Binder;
 import com.google.inject.Module;
 import com.google.inject.Singleton;
+import de.cosmocode.palava.cache.keysets.MemoryKeySetModule;
 
 /**
  * Binds the memcached based {@link CacheService} implementation to CacheService.
  *
  * @author Oliver Lorenz
+ * @deprecated use {@link MemcacheCacheRepositoryModule} instead
  */
 @Deprecated
 public class MemcacheCacheServiceModule implements Module {
 
     @Override
     public void configure(Binder binder) {
+        binder.install(new MemoryKeySetModule());
+        binder.install(new MemcacheCacheRepositoryModule());
         binder.bind(CacheService.class).to(MemcacheCacheService.class).in(Singleton.class);
     }
 

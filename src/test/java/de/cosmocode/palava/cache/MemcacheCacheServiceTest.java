@@ -16,9 +16,6 @@
 
 package de.cosmocode.palava.cache;
 
-import java.util.Properties;
-import java.util.concurrent.TimeUnit;
-
 import com.google.inject.AbstractModule;
 import com.google.inject.name.Names;
 import de.cosmocode.palava.core.DefaultRegistryModule;
@@ -31,6 +28,9 @@ import de.cosmocode.palava.memcache.MemcacheLocalServerModule;
 import de.cosmocode.palava.scope.SingletonUnitOfWorkScopeModule;
 import org.junit.After;
 import org.junit.Before;
+
+import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Tests the {@link MemcacheCacheService}.
@@ -92,7 +92,7 @@ public final class MemcacheCacheServiceTest extends CacheServiceTest {
 
     @Override
     protected long sleepTimeUntilExpired() {
-        return 4;
+        return 3;
     }
 
     @Override
