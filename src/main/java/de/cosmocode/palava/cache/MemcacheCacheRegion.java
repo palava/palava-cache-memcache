@@ -23,6 +23,7 @@ import com.google.common.collect.Maps;
 import com.google.inject.Provider;
 import de.cosmocode.palava.cache.keysets.KeySetFactory;
 import net.spy.memcached.MemcachedClientIF;
+import net.spy.memcached.transcoders.Transcoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,6 +51,7 @@ class MemcacheCacheRegion<K extends Serializable, V> extends AbstractMap<K, V> i
     private final Set<String> keySet;
     private final Provider<MemcachedClientIF> currentClient;
     private final KeyMarshaller keyMarshaller;
+    private final Transcoder<Object> transcoder;
     private final String name;
 
     private final Set<Entry<K, V>> entrySet = new EntrySet();
@@ -58,10 +60,12 @@ class MemcacheCacheRegion<K extends Serializable, V> extends AbstractMap<K, V> i
             final KeySetFactory keySetFactory,
             final Provider<MemcachedClientIF> currentClient,
             final KeyMarshaller keyMarshaller,
+            final Marshaller marshaller,
             final String name) {
         this.keySet = keySetFactory.create(name);
         this.currentClient = currentClient;
         this.keyMarshaller = keyMarshaller;
+        this.transcoder = new MarshallerTranscoder(marshaller);
         this.name = name;
     }
 
@@ -78,39 +82,39 @@ class MemcacheCacheRegion<K extends Serializable, V> extends AbstractMap<K, V> i
     @Override
     public V get(Object key) {
         Preconditions.checkNotNull(key, "Key");
-        final IdleTimeAwareValue idleTimeAwareValue = getInternal(keyMarshaller.encode(Serializable.class.cast(key)));
+        final MetaValue metaValue = getInternal(keyMarshaller.encode(Serializable.class.cast(key)));
 
-        if (idleTimeAwareValue == null) {
+        if (metaValue == null) {
             return null;
         } else {
             @SuppressWarnings("unchecked")
-            final V value = (V) idleTimeAwareValue.getValue();
+            final V value = (V) metaValue.getValue();
             LOG.trace("Read value {} for key '{}'", value, key);
             return value;
         }
     }
 
-    private IdleTimeAwareValue getInternal(String key) {
+    private MetaValue getInternal(String key) {
         Preconditions.checkNotNull(key, "Key");
         final MemcachedClientIF client = currentClient.get();
 
-        final Object rawValue = client.get(key, JacksonTranscoder.INSTANCE);
+        final Object rawValue = client.get(key, transcoder);
         @SuppressWarnings("unchecked")
-        final IdleTimeAwareValue idleTimeAwareValue = (IdleTimeAwareValue) rawValue;
-        if (idleTimeAwareValue == null) {
+        final MetaValue metaValue = (MetaValue) rawValue;
+        if (metaValue == null) {
             return null;
-        } else if (idleTimeAwareValue.isExpired()) {
+        } else if (metaValue.isExpired()) {
             client.delete(key);
             return null;
         } else {
-            if (idleTimeAwareValue.getIdleTimeInSeconds() > 0) {
+            if (metaValue.getIdleTimeInSeconds() > 0) {
                 // update the value in the cache with last accessed: now; deliberately unsafe use of set
-                idleTimeAwareValue.setLastAccessedAt(new Date());
-                final int timeout = idleTimeAwareValue.calculateNewTimeout();
-                client.set(key, timeout, idleTimeAwareValue, JacksonTranscoder.INSTANCE);
+                metaValue.setLastAccessedAt(new Date());
+                final int timeout = metaValue.calculateNewTimeout();
+                client.set(key, timeout, metaValue, transcoder);
             }
 
-            return idleTimeAwareValue;
+            return metaValue;
         }
     }
 
@@ -128,19 +132,19 @@ class MemcacheCacheRegion<K extends Serializable, V> extends AbstractMap<K, V> i
         final MemcachedClientIF client = currentClient.get();
         LOG.trace("Storing {} => {}..", key, value);
 
-        final IdleTimeAwareValue idleTimeAwareValue = new IdleTimeAwareValue();
-        idleTimeAwareValue.setKey(key);
-        idleTimeAwareValue.setValue(value);
-        idleTimeAwareValue.setIdleTimeInSeconds((int) expiration.getIdleTimeIn(TimeUnit.SECONDS));
-        idleTimeAwareValue.setLifeTimeInSeconds((int) expiration.getLifeTimeIn(TimeUnit.SECONDS));
-        if (idleTimeAwareValue.getIdleTimeInSeconds() > 0) {
-            idleTimeAwareValue.setStoredAt(new Date());
-            idleTimeAwareValue.setLastAccessedAt(new Date());
+        final MetaValue metaValue = new MetaValue();
+        metaValue.setKey(key);
+        metaValue.setValue(value);
+        metaValue.setIdleTimeInSeconds((int) expiration.getIdleTimeIn(TimeUnit.SECONDS));
+        metaValue.setLifeTimeInSeconds((int) expiration.getLifeTimeIn(TimeUnit.SECONDS));
+        if (metaValue.getIdleTimeInSeconds() > 0) {
+            metaValue.setStoredAt(new Date());
+            metaValue.setLastAccessedAt(new Date());
         }
 
         final V previousValue = get(key);
         final String encodedKey = keyMarshaller.encode(key);
-        client.set(encodedKey, timeout, idleTimeAwareValue, JacksonTranscoder.INSTANCE);
+        client.set(encodedKey, timeout, metaValue, transcoder);
         keySet.add(encodedKey);
         return previousValue;
     }
@@ -233,8 +237,8 @@ class MemcacheCacheRegion<K extends Serializable, V> extends AbstractMap<K, V> i
         @SuppressWarnings("unchecked")
         protected Entry<K, V> computeNext() {
             if (keyIterator.hasNext()) {
-                final IdleTimeAwareValue idleTimeAwareValue = getInternal(keyIterator.next());
-                return Maps.immutableEntry((K) idleTimeAwareValue.getKey(), (V) idleTimeAwareValue.getValue());
+                final MetaValue metaValue = getInternal(keyIterator.next());
+                return Maps.immutableEntry((K) metaValue.getKey(), (V) metaValue.getValue());
             } else {
                 return endOfData();
             }

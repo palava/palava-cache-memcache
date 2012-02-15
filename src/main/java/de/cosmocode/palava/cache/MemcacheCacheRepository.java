@@ -37,6 +37,7 @@ class MemcacheCacheRepository implements CacheRepository {
     private final KeySetFactory keySetFactory;
     private final Provider<MemcachedClientIF> currentClient;
     private KeyMarshaller keyMarshaller = KeyMarshallers.HASHED_JSON;
+    private Marshaller marshaller = JacksonMarshaller.INSTANCE;
 
     private final ConcurrentMap<String, CacheRegion<?, ?>> cacheRegionLookup = new MapMaker().makeMap();
 
@@ -53,6 +54,11 @@ class MemcacheCacheRepository implements CacheRepository {
         this.keyMarshaller = keyMarshaller;
     }
 
+    @Inject(optional = true)
+    public void setMarshaller(final Marshaller marshaller) {
+        this.marshaller = marshaller;
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public <K extends Serializable, V> CacheRegion<K, V> getRegion(final String name) {
@@ -60,7 +66,7 @@ class MemcacheCacheRepository implements CacheRepository {
             return (CacheRegion<K, V>) cacheRegionLookup.get(name);
         } else {
             final CacheRegion<K, V> newCacheRegion = new MemcacheCacheRegion<K, V>(keySetFactory, currentClient,
-                    keyMarshaller, name);
+                    keyMarshaller, marshaller, name);
             final CacheRegion<?, ?> previousCacheRegion = cacheRegionLookup.putIfAbsent(name, newCacheRegion);
             if (previousCacheRegion == null) {
                 return newCacheRegion;

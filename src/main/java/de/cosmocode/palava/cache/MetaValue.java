@@ -27,7 +27,7 @@ import org.codehaus.jackson.annotate.JsonIgnore;
  *
  * @since 1.0
  */
-final class IdleTimeAwareValue implements Serializable {
+final class MetaValue implements Serializable {
 
     private long idleTimeInSeconds;
     private long lifeTimeInSeconds;
