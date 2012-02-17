@@ -17,12 +17,20 @@
 package de.cosmocode.palava.cache.keysets;
 
 import com.google.common.collect.ForwardingSet;
+import com.google.common.io.Files;
 import com.google.inject.Inject;
 import com.google.inject.assistedinject.Assisted;
 import de.cosmocode.palava.core.lifecycle.Disposable;
 import de.cosmocode.palava.core.lifecycle.Initializable;
 import de.cosmocode.palava.core.lifecycle.LifecycleException;
+import org.apache.commons.lang.SerializationUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -34,6 +42,8 @@ import java.util.concurrent.CopyOnWriteArraySet;
  * @since 1.0
  */
 final class MemoryKeySet extends ForwardingSet<String> implements Set<String>, Initializable, Disposable {
+
+    private static final Logger LOG = LoggerFactory.getLogger(MemoryKeySet.class);
 
     private final String name;
     private final Set<String> keys = new CopyOnWriteArraySet<String>();
@@ -51,11 +61,41 @@ final class MemoryKeySet extends ForwardingSet<String> implements Set<String>, I
     @Override
     public void initialize() throws LifecycleException {
         // attempt to read list from hard disk
+        try {
+            final File serializationFile = getSerializationFile();
+            if (serializationFile.exists()) {
+                final Object deserialized = SerializationUtils.deserialize(
+                        Files.newInputStreamSupplier(serializationFile).getInput()
+                );
+                @SuppressWarnings("unchecked")
+                final Collection<String> deserializedKeys = (Collection<String>) deserialized;
+                keys.addAll(deserializedKeys);
+                LOG.info("Loaded {} keys from hard disk", keys.size());
+            }
+        } catch (IOException e) {
+            throw new LifecycleException(e);
+        }
     }
 
     @Override
     public void dispose() throws LifecycleException {
         // write list to hard disk
+        try {
+            SerializationUtils.serialize(
+                    Serializable.class.cast(keys),
+                    Files.newOutputStreamSupplier(getSerializationFile()).getOutput()
+            );
+        } catch (IOException e) {
+            throw new LifecycleException(e);
+        }
+    }
+
+    private File getSerializationFile() {
+        final File parentDir = new File(System.getProperty("java.io.tmpdir", "/tmp"), "memoryKeySets");
+        if (parentDir.mkdirs()) {
+            LOG.info("Created parent serialization directory {}", parentDir);
+        }
+        return new File(parentDir, name + ".ser");
     }
 
     @Override
