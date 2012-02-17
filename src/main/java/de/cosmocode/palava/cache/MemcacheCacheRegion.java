@@ -76,6 +76,7 @@ class MemcacheCacheRegion<K extends Serializable, V> extends AbstractMap<K, V> i
 
     @Override
     public int size() {
+        // TODO this is not exact ...
         return keySet.size();
     }
 
@@ -94,24 +95,24 @@ class MemcacheCacheRegion<K extends Serializable, V> extends AbstractMap<K, V> i
         }
     }
 
-    private MetaValue getInternal(String key) {
-        Preconditions.checkNotNull(key, "Key");
+    private MetaValue getInternal(String encodedKey) {
+        Preconditions.checkNotNull(encodedKey, "Encoded Key");
         final MemcachedClientIF client = currentClient.get();
 
-        final Object rawValue = client.get(key, transcoder);
         @SuppressWarnings("unchecked")
-        final MetaValue metaValue = (MetaValue) rawValue;
+        final MetaValue metaValue = (MetaValue) client.get(encodedKey, transcoder);
         if (metaValue == null) {
             return null;
         } else if (metaValue.isExpired()) {
-            client.delete(key);
+            client.delete(encodedKey);
+            keySet.remove(encodedKey);
             return null;
         } else {
             if (metaValue.getIdleTimeInSeconds() > 0) {
                 // update the value in the cache with last accessed: now; deliberately unsafe use of set
                 metaValue.setLastAccessedAt(new Date());
                 final int timeout = metaValue.calculateNewTimeout();
-                client.set(key, timeout, metaValue, transcoder);
+                client.set(encodedKey, timeout, metaValue, transcoder);
             }
 
             return metaValue;
@@ -142,8 +143,9 @@ class MemcacheCacheRegion<K extends Serializable, V> extends AbstractMap<K, V> i
             metaValue.setLastAccessedAt(new Date());
         }
 
-        final V previousValue = get(key);
         final String encodedKey = keyMarshaller.encode(key);
+        LOG.trace("Encoded key: {}", encodedKey);
+        final V previousValue = get(key);
         client.set(encodedKey, timeout, metaValue, transcoder);
         keySet.add(encodedKey);
         return previousValue;
