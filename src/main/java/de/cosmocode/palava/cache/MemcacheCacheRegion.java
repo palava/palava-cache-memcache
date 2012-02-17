@@ -237,8 +237,15 @@ class MemcacheCacheRegion<K extends Serializable, V> extends AbstractMap<K, V> i
         @SuppressWarnings("unchecked")
         protected Entry<K, V> computeNext() {
             if (keyIterator.hasNext()) {
-                final MetaValue metaValue = getInternal(keyIterator.next());
-                return Maps.immutableEntry((K) metaValue.getKey(), (V) metaValue.getValue());
+                MetaValue metaValue = null;
+                while (metaValue == null && keyIterator.hasNext()) {
+                    metaValue = getInternal(keyIterator.next());
+                }
+                if (metaValue == null) {
+                    return endOfData();
+                } else {
+                    return Maps.immutableEntry((K) metaValue.getKey(), (V) metaValue.getValue());
+                }
             } else {
                 return endOfData();
             }

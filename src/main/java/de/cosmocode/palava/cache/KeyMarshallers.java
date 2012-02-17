@@ -60,6 +60,12 @@ public enum KeyMarshallers implements KeyMarshaller {
         public boolean isDecodable() {
             return true;
         }
+    },
+    HASHED_SERIALIZE {
+        @Override
+        public String encode(Serializable key) {
+            return DigestUtils.shaHex(SerializationUtils.serialize(key));
+        }
     };
 
 
